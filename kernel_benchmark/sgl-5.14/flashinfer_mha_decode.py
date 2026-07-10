@@ -10,7 +10,7 @@ from flashinfer import BatchDecodeWithPagedKVCacheWrapper
 from sglang.srt.layers.attention.flashinfer_backend import \
     should_use_tensor_core
 
-parent_dir = os.path.join(os.path.dirname(__file__), "..")
+parent_dir = os.path.join(os.path.dirname(__file__), "..", "..")
 sys.path.append(os.path.abspath(parent_dir))
 
 from config.model_config import ModelConfig  # noqa E402
