@@ -37,7 +37,7 @@ try:  # import path drifted across sglang versions; 0.5.14 resolves the first
 except ImportError:
     from sglang.srt.layers.moe.moe_runner.triton_utils.fused_moe import fused_moe
 
-parent_dir = os.path.join(os.path.dirname(__file__), "..")
+parent_dir = os.path.join(os.path.dirname(__file__), "..", "..")
 sys.path.append(os.path.abspath(parent_dir))
 from config.model_config import ModelConfig  # noqa E402
 
