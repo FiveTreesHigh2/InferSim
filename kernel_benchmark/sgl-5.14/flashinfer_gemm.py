@@ -172,7 +172,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("-k", type=int, default=2048, help="[m,k] * [k,n]  (must be %128==0)")
     parser.add_argument("-n", type=int, default=2048, help="[m,k] * [k,n]  (must be %128==0)")
-    parser.add_argument("--gpu-tflops", type=int, default=536, help="GPU FP8 peak TFLOPS (pro5000=520)")
+    parser.add_argument("--gpu-tflops", type=int, default=536, help="GPU FP8 peak TFLOPS (pro5000=536)")
     args = parser.parse_args()
     assert args.k % 128 == 0 and args.n % 128 == 0, "k and n must be multiples of 128"
     main(args)
