@@ -90,7 +90,7 @@ def bench_moe(tokens, hidden, num_local_experts, topk, w1, w1s, w2, w2s,
         topk_config=TopKConfig(top_k=topk, renormalize=False),
     )
 
-    moe_kwargs = dict(use_fp8_w8a8=use_fp8, inplace=False)
+    moe_kwargs = dict(use_fp8_w8a8=use_fp8)  # inplace is set via MoeRunnerConfig; default is fine
     if use_fp8:
         moe_kwargs.update(w1_scale=w1s, w2_scale=w2s, block_shape=[BLOCK, BLOCK])
 
