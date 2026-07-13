@@ -5,6 +5,13 @@ from models.hybrid_model import HybridModel
 from models.model import Model
 
 
+def mfu_value(value):
+    value = float(value)
+    if not 0 < value <= 1:
+        raise argparse.ArgumentTypeError("MFU must be in the range (0, 1]")
+    return value
+
+
 def main(args):
     config = ModelConfig(args.config_path)
 
@@ -60,6 +67,18 @@ if __name__ == "__main__":
         type=int,
         default=4096,
         help="Max prefill tokens per GPU",
+    )
+    parser.add_argument(
+        "--prefill-attn-mfu",
+        type=mfu_value,
+        default=None,
+        help="Override prefill attention MFU. If omitted, read MFU from bench data.",
+    )
+    parser.add_argument(
+        "--prefill-moe-mfu",
+        type=mfu_value,
+        default=None,
+        help="Override prefill routed MoE/FFN MFU. If omitted, read MFU from bench data.",
     )
     parser.add_argument(
         "--decode-bs",

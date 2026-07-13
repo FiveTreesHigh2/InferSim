@@ -11,10 +11,11 @@ class MoE:
     MoE/FFN layer, dense FFN is treated as a special 1-expert MoE
     """
 
-    def __init__(self, config, use_fp8_gemm, tp_size):
+    def __init__(self, config, use_fp8_gemm, tp_size, prefill_mfu=None):
         self.use_fp8_gemm = use_fp8_gemm
         self.config = config
         self.tp_size = tp_size
+        self.prefill_mfu = prefill_mfu
 
     def decode_moe(self, bs, device_type, num_gpus):
         gpu = gpu_map[device_type]
@@ -100,7 +101,9 @@ class MoE:
         )
         routed_experts_gflops *= seq_len * self.config.num_experts_per_tok * 3.0 / 1e9
 
-        if self.config.is_moe:
+        if self.prefill_mfu is not None:
+            routed_experts_mfu = self.prefill_mfu
+        elif self.config.is_moe:
             routed_experts_mfu = max(
                 get_groupedgemm_prefill_mfu(
                     self.config, seq_len, device_type, num_gpus, self.use_fp8_gemm, self.tp_size

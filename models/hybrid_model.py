@@ -174,7 +174,11 @@ class HybridModel:
         )
         # full attn
         full_attn = create_attention(
-            self.config, self.args.use_fp8_gemm, self.args.use_fp8_kv, self.args.tp_size
+            self.config,
+            self.args.use_fp8_gemm,
+            self.args.use_fp8_kv,
+            self.args.tp_size,
+            self.args.prefill_attn_mfu,
         )
         t_full_attn_core = full_attn.prefill_attn_core(
             self.args.target_isl, self.kvcache_bytes, self.args.device_type
@@ -197,7 +201,12 @@ class HybridModel:
         )
 
         # moe
-        moe = MoE(self.config, self.args.use_fp8_gemm, self.args.tp_size)
+        moe = MoE(
+            self.config,
+            self.args.use_fp8_gemm,
+            self.args.tp_size,
+            self.args.prefill_moe_mfu,
+        )
         t_moe = moe.prefill_moe(
             self.args.max_prefill_tokens, self.args.device_type, self.args.world_size
         )

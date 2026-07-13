@@ -145,7 +145,11 @@ class Model:
             "{:<40} {:<10}".format("Max prefill tokens:", self.args.max_prefill_tokens)
         )
         attn = create_attention(
-            self.config, self.args.use_fp8_gemm, self.args.use_fp8_kv, self.args.tp_size
+            self.config,
+            self.args.use_fp8_gemm,
+            self.args.use_fp8_kv,
+            self.args.tp_size,
+            self.args.prefill_attn_mfu,
         )
         attn_core_time = attn.prefill_attn_core(
             self.args.target_isl, self.kvcache_bytes, self.args.device_type
@@ -155,7 +159,12 @@ class Model:
         )
         attn_core_time *= math.ceil(self.args.max_prefill_tokens / self.args.target_isl)
 
-        moe = MoE(self.config, self.args.use_fp8_gemm, self.args.tp_size)
+        moe = MoE(
+            self.config,
+            self.args.use_fp8_gemm,
+            self.args.tp_size,
+            self.args.prefill_moe_mfu,
+        )
         moe_time = moe.prefill_moe(
             self.args.max_prefill_tokens, self.args.device_type, self.args.world_size
         )
