@@ -45,7 +45,7 @@ class MHA:
             kvcache_bytes
             * kv_len
             * bs
-            / self.config.num_hidden_layers
+            / self.config.num_full_attn_layers
             / 1024
             / 1024
             / 1024
@@ -99,7 +99,7 @@ class MHA:
         kv_load_time = (
             kvcache_bytes
             * seq_len
-            / self.config.num_hidden_layers
+            / self.config.num_full_attn_layers
             / 1024
             / 1024
             / 1024

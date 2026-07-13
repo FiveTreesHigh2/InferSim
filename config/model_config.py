@@ -16,6 +16,9 @@ class ModelConfig:
         self.hidden_size = d["hidden_size"]
         self.num_hidden_layers = d["num_hidden_layers"]
 
+        # Non-hybrid models use full attention in every hidden layer.
+        self.num_full_attn_layers = self.num_hidden_layers
+        self.num_linear_attn_layers = 0
         self.is_hybrid_linear = d.get("full_attention_interval") is not None
         if self.is_hybrid_linear:
             self.num_full_attn_layers = (
