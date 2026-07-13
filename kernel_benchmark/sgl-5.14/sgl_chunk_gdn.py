@@ -167,7 +167,7 @@ if __name__ == "__main__":
     torch.cuda.set_device(device)
     torch.set_float32_matmul_precision("high")
 
-    performance_cases = [TestParam(seq_len=seq_len) for seq_len in [4096]]
+    performance_cases = [TestParam(seq_len=seq_len) for seq_len in [1024,4096,8192,16384,32768]]
 
     testcases = performance_cases
 

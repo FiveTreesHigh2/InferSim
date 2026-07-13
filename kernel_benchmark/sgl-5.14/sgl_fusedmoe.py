@@ -161,7 +161,7 @@ def main():
     w2, w2s = build_experts(num_local_experts, hidden, shard_interm, args.use_fp8_w8a8)
 
     if args.mode == "prefill":
-        token_sweep = [512, 1024, 2048, 4096, 8192, 16384]
+        token_sweep = [512, 1024, 2048, 4096, 8192, 16384,32768]
         col6_name = "seq_len_per_gpu"
     else:
         token_sweep = [1, 8, 16, 32, 64, 128, 256, 512, 1024, 2048, 4096]

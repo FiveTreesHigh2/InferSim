@@ -150,7 +150,7 @@ def test_gemm(m, k, n):
 
 def main(args):
     results = []
-    for m in [8, 16, 32, 64, 128, 256, 512, 1024, 4096, 8192, 16384, 32768, 64 * 1024, 128 * 1024]:
+    for m in [8, 16, 32, 64, 128, 224, 256, 512, 1024, 4096, 8192, 16384, 32768, 64 * 1024, 128 * 1024]:
         try:
             t, tflops = test_gemm(m, args.k, args.n)
             results.append({
