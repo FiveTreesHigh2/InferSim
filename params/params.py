@@ -6,7 +6,13 @@ def get_mha_params_size(config: ModelConfig, use_fp8: bool, tp_size: int):
     # TP shards heads; hidden_size is NOT sharded (row/col-parallel + allreduce)
     tp_num_heads = config.num_attention_heads // tp_size
     tp_num_kv_heads = config.num_key_value_heads // tp_size
-    wq = config.hidden_size * tp_num_heads * config.head_dim
+    q_multiplier = 2 if config.attn_output_gate else 1
+    wq = (
+        config.hidden_size
+        * q_multiplier
+        * tp_num_heads
+        * config.head_dim
+    )
     wk = config.hidden_size * tp_num_kv_heads * config.head_dim
     wv = config.hidden_size * tp_num_kv_heads * config.head_dim
     wo = config.hidden_size * tp_num_heads * config.head_dim
