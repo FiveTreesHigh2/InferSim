@@ -3,7 +3,7 @@ from hardware.gpu import gpu_map
 from layers.attn import get_gemm_mfu_and_latency
 from mfu.mfu import (get_gemm_mfu, get_groupedgemm_decode_mfu,
                      get_groupedgemm_prefill_mfu)
-from params.params import load_moe_weights_time
+from params.params import get_expected_active_experts, load_moe_weights_time
 
 
 class MoE:
@@ -49,10 +49,19 @@ class MoE:
                 gpu.fp8_tflops * 1024 * routed_experts_mfu
             )
 
+        active_experts = get_expected_active_experts(
+            self.config, num_gpus, self.tp_size, bs
+        )
         moe_load_time = load_moe_weights_time(
-            self.config, self.use_fp8_gemm, gpu, num_gpus, self.tp_size
+            self.config,
+            self.use_fp8_gemm,
+            gpu,
+            num_gpus,
+            self.tp_size,
+            num_tokens=bs,
         )
         print("{:<40} {:<10.2f}".format("Routed experts/FFN MFU:", routed_experts_mfu))
+        print("{:<40} {:<10.2f}".format("Expected active experts:", active_experts))
         print(
             "{:<40} {:<10.2f}".format(
                 "Routed experts/FFN latency (us):", routed_experts_latency * 1e6
