@@ -124,7 +124,7 @@ def main(args):
         kv_cache_dtype = torch.float8_e4m3fn
 
     batch_kv_mapping = {
-        1: [1024, 4096, 8192, 16384, 32768, 65536, 131072],
+        1: [1024, 4096, 5120, 8192, 16384, 32768, 65536, 131072],
         16: [1024, 4096, 8192, 16384, 32768, 65536, 131072],
         32: [1024, 4096, 8192, 16384, 32768, 65536, 131072],
         64: [1024, 4096, 8192, 16384, 32768, 65536, 131072],
@@ -135,8 +135,11 @@ def main(args):
 
     configs = []
     results = []
-    for batch_size, kv_len_range in batch_kv_mapping.items():
-        configs.extend([(batch_size, kv_len) for kv_len in kv_len_range])
+    if args.batch_size is not None:
+        configs.append((args.batch_size, args.kv_len))
+    else:
+        for batch_size, kv_len_range in batch_kv_mapping.items():
+            configs.extend([(batch_size, kv_len) for kv_len in kv_len_range])
 
     attn_flashinfer = decode_attention_flashinfer(
         kv_cache_dtype, num_attention_heads, num_kv_heads
@@ -201,7 +204,7 @@ def main(args):
                 "batch_size": batch_size,
                 "kv_len": kv_len,
                 "latency_us": round(us_flashinfer, 3),
-                "mfu": round(mfu, 3),
+                "mfu": round(mfu, 6),
             }
         )
 
@@ -229,8 +232,25 @@ if __name__ == "__main__":
     )
     parser.add_argument("--tp-size", type=int, default=1, help="tp size")
     parser.add_argument(
-        "--fp16-tflops", type=int, default=148, help="GPU FP16 TFLOPS size"
+        "--batch-size",
+        type=int,
+        default=None,
+        help="Benchmark only one batch size; requires --kv-len.",
+    )
+    parser.add_argument(
+        "--kv-len",
+        type=int,
+        default=None,
+        help="Benchmark only one KV length; requires --batch-size.",
+    )
+    parser.add_argument(
+        "--fp16-tflops",
+        type=int,
+        default=274,
+        help="GPU BF16/FP16 peak TFLOPS (PRO5000=274)",
     )
 
     args = parser.parse_args()
+    if (args.batch_size is None) != (args.kv_len is None):
+        parser.error("--batch-size and --kv-len must be specified together")
     main(args)

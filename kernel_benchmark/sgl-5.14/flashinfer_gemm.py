@@ -7,11 +7,13 @@ Uses flashinfer.gemm.gemm_fp8_nt_groupwise (CUTLASS backend, supports SM100/103/
 Same block-FP8 format as the model: A per-token 1x128, B per-block 128x128, scale_major_mode="K".
 Timing matches deep_gemm.bench_kineto (pure GPU kernel time via torch.profiler + 8GB L2 flush),
 so numbers are comparable to the existing bench_data/gemm/h20,h800 CSVs.
-Output CSV: gemm.csv  ->  rename to bench_data/gemm/pro5000/data.csv
+Output CSV defaults to gemm.csv. Use --output when benchmarking multiple shapes,
+then merge the generated CSV rows into bench_data/gemm/pro5000/data.csv.
 Columns (unchanged): m,k,n,latency_us,mfu
 
 Run (sweep m for one (k,n) shape):
-    python flashinfer_gemm_sm120.py -k 2048 -n 2048 --gpu-tflops 520
+    python flashinfer_gemm.py -k 2048 -n 9216 --gpu-tflops 536 \
+        --output gemm_2048_9216.csv
 """
 import argparse
 import random
@@ -150,20 +152,25 @@ def test_gemm(m, k, n):
 
 def main(args):
     results = []
-    for m in [8, 16, 32, 64, 128, 224, 256, 512, 1024, 4096, 8192, 16384, 32768, 64 * 1024, 128 * 1024]:
+    default_m_values = [
+        1, 2, 4, 8, 16, 32, 64, 128, 224, 256, 512, 1024,
+        4096, 8192, 16384, 32768, 64 * 1024, 128 * 1024,
+    ]
+    for m in args.m_values or default_m_values:
         try:
             t, tflops = test_gemm(m, args.k, args.n)
             results.append({
                 "m": m, "k": args.k, "n": args.n,
                 "latency_us": round(t, 3),
-                "mfu": round(tflops / args.gpu_tflops, 3),
+                # Small-batch GEMMs can have MFU below 0.001. Keep enough
+                # precision to avoid writing 0.000 and dividing by zero later.
+                "mfu": round(tflops / args.gpu_tflops, 6),
             })
         except Exception as e:
             print(f" > m={m:6} k={args.k} n={args.n} | FAILED: {type(e).__name__}: {str(e)[:160]}")
     df = pd.DataFrame(results)
-    df.to_csv("gemm.csv", index=False)
-    print(f"\nWrote gemm.csv ({len(results)} rows). "
-          f"mv gemm.csv bench_data/gemm/pro5000/data.csv")
+    df.to_csv(args.output, index=False)
+    print(f"\nWrote {args.output} ({len(results)} rows).")
 
 
 if __name__ == "__main__":
@@ -173,6 +180,11 @@ if __name__ == "__main__":
     parser.add_argument("-k", type=int, default=2048, help="[m,k] * [k,n]  (must be %128==0)")
     parser.add_argument("-n", type=int, default=2048, help="[m,k] * [k,n]  (must be %128==0)")
     parser.add_argument("--gpu-tflops", type=int, default=536, help="GPU FP8 peak TFLOPS (pro5000=536)")
+    parser.add_argument(
+        "--m-values", type=int, nargs="+", default=None,
+        help="Optional m values to benchmark, for example: --m-values 1 2 4",
+    )
+    parser.add_argument("--output", default="gemm.csv", help="Output CSV path")
     args = parser.parse_args()
     assert args.k % 128 == 0 and args.n % 128 == 0, "k and n must be multiples of 128"
     main(args)

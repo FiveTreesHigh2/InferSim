@@ -33,7 +33,7 @@ def get_attn_decode_mfu(config, target_bs, kv_len, device_type, use_fp8_kv, tp_s
     closest_row = min(rows, key=lambda r: abs(int(r[2]) - target_bs) + abs(int(r[3]) - kv_len))
     mfu = float(closest_row[5])
 
-    return round(mfu, 3)
+    return round(mfu, 6)
 
 
 def get_attn_prefill_mfu(config, seq_len, device_type, tp_size):
@@ -182,14 +182,21 @@ def get_gemm_mfu(device_type, m, k, n):
             rows.append(row)
 
     mfu = gpu.mfu
+    matched = False
     for row in rows:
         m_ = int(row[0])
         k_ = int(row[1])
         n_ = int(row[2])
         if k_ == mfu_k and n_ == mfu_n and m_ <= m:
             mfu = float(row[4])
+            matched = True
 
-    return round(mfu, 3)
+    if not matched:
+        print(
+            f"Warning: GEMM MFU not found for m={m}, k={k}, n={n}; "
+            f"using default MFU {gpu.mfu}."
+        )
+    return round(mfu, 6)
 
 
 def get_linear_attn_prefill_latency(config, seq_len, device_type):
