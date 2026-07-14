@@ -312,7 +312,7 @@ class HybridModel:
         else:
             tpot += (comm_t1 + comm_t2) * self.config.num_hidden_layers
         tpot *= 1000  # convert to ms
-        tpot += 2  # for scheduler
+        tpot += 0.3  # for scheduler
 
         print("{:<40} {:<10.2f}".format("TPOT (ms):", tpot))
         print("{:<40} {:<10.0f}".format("Throughput (TGS:tok/GPU/s):", num_tokens / self.args.tp_size / (tpot / 1000)))
