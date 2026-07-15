@@ -10,8 +10,15 @@ class ModelConfig:
         with open(config_path, "r") as f:
             d = json.load(f)
 
-        if d["model_type"] in ["qwen3_5", "qwen3_5_moe"]:
+        root_model_type = d["model_type"]
+        if root_model_type in ["qwen3_5", "qwen3_5_moe"]:
             d = d["text_config"]
+
+        self.model_type = d["model_type"]
+        self.is_qwen3_5_moe = (
+            root_model_type == "qwen3_5_moe"
+            and self.model_type == "qwen3_5_moe_text"
+        )
 
         self.hidden_size = d["hidden_size"]
         self.num_hidden_layers = d["num_hidden_layers"]

@@ -280,7 +280,10 @@ class HybridModel:
 
         moe = MoE(self.config, self.args.use_fp8_gemm, self.args.tp_size)
         t_moe = moe.decode_moe(
-            self.target_bs, self.args.device_type, self.args.world_size
+            self.target_bs,
+            self.args.device_type,
+            self.args.world_size,
+            overlap_shared_expert=self.args.enable_shared_expert_overlap,
         )
 
         comm = Comm(

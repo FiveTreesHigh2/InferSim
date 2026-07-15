@@ -61,7 +61,10 @@ class MHA:
         )
         print("{:<40} {:<10.2f}".format("KV loading latency (us):", kv_load_time * 1e6))
 
-        return max(attn_core_time, kv_load_time)
+        # The MHA Decode benchmark measures the complete attention kernel and
+        # therefore already includes KV-cache reads. Keep the standalone KV
+        # roofline as a diagnostic, but do not apply it a second time.
+        return attn_core_time
 
     def decode_attn_others(self, bs, device_type):
         # TP shards heads; hidden_size is NOT sharded

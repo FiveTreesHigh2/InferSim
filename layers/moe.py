@@ -17,7 +17,13 @@ class MoE:
         self.tp_size = tp_size
         self.prefill_mfu = prefill_mfu
 
-    def decode_moe(self, bs, device_type, num_gpus):
+    def decode_moe(
+        self,
+        bs,
+        device_type,
+        num_gpus,
+        overlap_shared_expert=False,
+    ):
         gpu = gpu_map[device_type]
 
         # TP shards intermediate_size; hidden_size is NOT sharded
@@ -91,13 +97,22 @@ class MoE:
                 device_type=device_type,
                 use_fp8_gemm=self.use_fp8_gemm,
             )
+            shared_expert_latency = shared_expert_up_proj + shared_expert_down_proj
             print(
                 "{:<40} {:<10.2f}".format(
                     "Shared expert latency (us):",
-                    (shared_expert_up_proj + shared_expert_down_proj) * 1e6,
+                    shared_expert_latency * 1e6,
                 )
             )
-            t += shared_expert_up_proj + shared_expert_down_proj
+            if overlap_shared_expert:
+                # Qwen3.5 CUDA Graph Decode runs shared experts on the current
+                # stream and routed experts on an alternate stream. The layer
+                # latency is governed by the slower path instead of their sum.
+                t = max(t, shared_expert_latency)
+                print("{:<40} {:<10}".format("Shared expert execution:", "overlap"))
+            else:
+                t += shared_expert_latency
+                print("{:<40} {:<10}".format("Shared expert execution:", "serial"))
         return t
 
     def prefill_moe(self, seq_len, device_type, num_gpus):
