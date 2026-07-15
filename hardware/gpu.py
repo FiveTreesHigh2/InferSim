@@ -1,6 +1,10 @@
 from dataclasses import dataclass
 
 
+# FLOP rates use SI units: 1 TFLOP/s = 1000 GFLOP/s.
+TFLOPS_TO_GFLOPS = 1000.0
+
+
 @dataclass
 class GPU:
     fp16_tflops: float
@@ -74,4 +78,10 @@ pro5000 = GPU(
     sm_version=120,
 )
 
-gpu_map = {"H20": h20, "H800": h800, "H200": h200, "GB200": gb200, "PRO5000":pro5000}
+gpu_map = {
+    "H20": h20,
+    "H800": h800,
+    "H200": h200,
+    "GB200": gb200,
+    "PRO5000": pro5000,
+}

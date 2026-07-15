@@ -5,6 +5,23 @@ from hardware.gpu import gpu_map
 
 
 def get_attn_decode_mfu(config, target_bs, kv_len, device_type, use_fp8_kv, tp_size):
+    mfu, _ = get_attn_decode_perf(
+        config, target_bs, kv_len, device_type, use_fp8_kv, tp_size
+    )
+    return mfu
+
+
+def get_attn_decode_perf(
+    config, target_bs, kv_len, device_type, use_fp8_kv, tp_size
+):
+    """Return decode-attention MFU and, when safe, measured latency in seconds.
+
+    Latency is returned only when the requested batch size exists in the CSV.
+    For an in-range KV length, latency is either the exact measurement or a
+    linear interpolation between the two surrounding measurements. If the
+    batch size is unavailable, MFU from the nearest batch is returned and the
+    caller scales it analytically.
+    """
     gpu = gpu_map[device_type]
     tp_num_heads = config.num_attention_heads // tp_size
     if config.attn_type == "MHA/GQA":
@@ -16,7 +33,7 @@ def get_attn_decode_mfu(config, target_bs, kv_len, device_type, use_fp8_kv, tp_s
         file_name = f"bench_data/mla/decode/{device_type.lower()}/{tp_num_heads}-{head_dim}.csv"
     if not os.path.exists(file_name):
         print(f"Warning: {file_name} not exists")
-        return gpu.mfu
+        return gpu.mfu, None
 
     # row: dtype,kv_dtype,batch_size,kv_len,latency,mfu
     kv_dtype = "fp8" if use_fp8_kv else "bf16"
@@ -29,11 +46,48 @@ def get_attn_decode_mfu(config, target_bs, kv_len, device_type, use_fp8_kv, tp_s
                 continue
             rows.append(row)
 
-    # Find the row with closest batch_size and kv_len to target values
-    closest_row = min(rows, key=lambda r: abs(int(r[2]) - target_bs) + abs(int(r[3]) - kv_len))
-    mfu = float(closest_row[5])
+    if not rows:
+        print(f"Warning: no {kv_dtype} rows found in {file_name}")
+        return gpu.mfu, None
 
-    return round(mfu, 6)
+    exact_bs_rows = [row for row in rows if int(row[2]) == target_bs]
+    if exact_bs_rows:
+        exact_bs_rows.sort(key=lambda row: int(row[3]))
+
+        for row in exact_bs_rows:
+            if int(row[3]) == kv_len:
+                return round(float(row[5]), 6), float(row[4]) / 1e6
+
+        lower = [row for row in exact_bs_rows if int(row[3]) < kv_len]
+        upper = [row for row in exact_bs_rows if int(row[3]) > kv_len]
+        if lower and upper:
+            lo = lower[-1]
+            hi = upper[0]
+            lo_kv, hi_kv = int(lo[3]), int(hi[3])
+            ratio = (kv_len - lo_kv) / (hi_kv - lo_kv)
+            latency_us = float(lo[4]) + ratio * (float(hi[4]) - float(lo[4]))
+            mfu = float(lo[5]) + ratio * (float(hi[5]) - float(lo[5]))
+            return round(mfu, 6), latency_us / 1e6
+
+        # Outside the measured KV range: reuse endpoint MFU, but do not reuse
+        # its absolute latency because attention work scales with KV length.
+        endpoint = (
+            exact_bs_rows[0]
+            if kv_len < int(exact_bs_rows[0][3])
+            else exact_bs_rows[-1]
+        )
+        return round(float(endpoint[5]), 6), None
+
+    # Batch size is the primary dimension. Do not mix batch-size distance and
+    # KV-length distance, which previously allowed bs=1 to beat bs=128 merely
+    # because its KV length happened to match exactly.
+    nearest_bs = min(
+        {int(row[2]) for row in rows}, key=lambda bs: abs(bs - target_bs)
+    )
+    same_bs_rows = [row for row in rows if int(row[2]) == nearest_bs]
+    closest_row = min(same_bs_rows, key=lambda row: abs(int(row[3]) - kv_len))
+
+    return round(float(closest_row[5]), 6), None
 
 
 def get_attn_prefill_mfu(config, seq_len, device_type, tp_size):
@@ -68,7 +122,7 @@ def get_attn_prefill_mfu(config, seq_len, device_type, tp_size):
         else:
             break
 
-    return round(mfu, 3)
+    return round(mfu, 6)
 
 
 def get_groupedgemm_decode_mfu(config, target_bs, device_type, num_gpus, use_fp8, tp_size=1):
@@ -108,7 +162,7 @@ def get_groupedgemm_decode_mfu(config, target_bs, device_type, num_gpus, use_fp8
     mfu1 = float(closest_row[9])
     mfu2 = float(closest_row[11])
 
-    return round(mfu1, 3), round(mfu2, 3)
+    return round(mfu1, 6), round(mfu2, 6)
 
 def get_groupedgemm_prefill_mfu(config, seq_len, device_type, num_gpus, use_fp8, tp_size=1):
     gpu = gpu_map[device_type]
@@ -152,7 +206,7 @@ def get_groupedgemm_prefill_mfu(config, seq_len, device_type, num_gpus, use_fp8,
         else:
             break
 
-    return round(mfu1, 3), round(mfu2, 3)
+    return round(mfu1, 6), round(mfu2, 6)
 
 
 def get_gemm_mfu(device_type, m, k, n):
