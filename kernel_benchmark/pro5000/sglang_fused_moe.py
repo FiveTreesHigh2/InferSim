@@ -133,7 +133,7 @@ def main():
     p.add_argument("--use-cuda-graph", action="store_true",
                    help="time via CUDA-graph replay (diagnostic; do NOT feed to simulator).")
     p.add_argument("--gpu-tflops", type=int, default=None,
-                   help="peak TFLOPS for MFU. Default: 520 (fp8) / 260 (bf16). Must match "
+                   help="peak TFLOPS for MFU. Default: 536 (fp8) / 274 (bf16). Must match "
                         "how main.py runs (fp8_tflops if --use-fp8-gemm, else fp16_tflops).")
     args = p.parse_args()
 
@@ -141,7 +141,7 @@ def main():
     torch.cuda.manual_seed_all(0)
     set_global_server_args_for_scheduler(ServerArgs(model_path="dummy"))
 
-    peak = args.gpu_tflops if args.gpu_tflops is not None else (520 if args.use_fp8_w8a8 else 260)
+    peak = args.gpu_tflops if args.gpu_tflops is not None else (536 if args.use_fp8_w8a8 else 274)
 
     cfg = ModelConfig(args.config_path)
     ep_size = args.num_gpus // args.tp_size
