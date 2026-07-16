@@ -1,5 +1,5 @@
 from flops.flops import gemm_flops
-from hardware.gpu import gpu_map
+from hardware.gpu import TFLOPS_TO_GFLOPS, gpu_map
 from layers.attn import get_gemm_mfu_and_latency
 from mfu.mfu import (get_gemm_mfu, get_groupedgemm_decode_mfu,
                      get_groupedgemm_prefill_mfu)
@@ -41,11 +41,11 @@ class MoE:
             )
 
         routed_experts_latency = routed_experts_gflops / (
-            gpu.fp16_tflops * 1024 * routed_experts_mfu
+            gpu.fp16_tflops * TFLOPS_TO_GFLOPS * routed_experts_mfu
         )
         if self.use_fp8_gemm:
             routed_experts_latency = routed_experts_gflops / (
-                gpu.fp8_tflops * 1024 * routed_experts_mfu
+                gpu.fp8_tflops * TFLOPS_TO_GFLOPS * routed_experts_mfu
             )
 
         moe_load_time = load_moe_weights_time(
@@ -115,11 +115,11 @@ class MoE:
             )
 
         routed_experts_latency = routed_experts_gflops / (
-            gpu.fp16_tflops * 1024 * routed_experts_mfu
+            gpu.fp16_tflops * TFLOPS_TO_GFLOPS * routed_experts_mfu
         )
         if self.use_fp8_gemm:
             routed_experts_latency = routed_experts_gflops / (
-                gpu.fp8_tflops * 1024 * routed_experts_mfu
+                gpu.fp8_tflops * TFLOPS_TO_GFLOPS * routed_experts_mfu
             )
 
         moe_load_time = load_moe_weights_time(

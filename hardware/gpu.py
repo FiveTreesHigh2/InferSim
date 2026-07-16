@@ -1,6 +1,10 @@
 from dataclasses import dataclass
 
 
+# FLOP rates use SI units: 1 TFLOP/s = 1000 GFLOP/s.
+TFLOPS_TO_GFLOPS = 1000.0
+
+
 @dataclass
 class GPU:
     fp16_tflops: float
@@ -68,7 +72,7 @@ pro5000 = GPU(
     mem=72,
     mem_bw=1102.3,
     nvlink_bw=64 * 0.8,
-    rdma_bw=50 * 0.8, 
+    rdma_bw=50 * 0.8,
     frequency=None,
     num_sm=110,
     sm_version=120,

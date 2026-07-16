@@ -1,5 +1,5 @@
 from flops.flops import gemm_flops
-from hardware.gpu import gpu_map
+from hardware.gpu import TFLOPS_TO_GFLOPS, gpu_map
 from mfu.mfu import get_attn_decode_mfu, get_attn_prefill_mfu, get_gemm_mfu
 
 
@@ -7,9 +7,9 @@ def get_gemm_mfu_and_latency(m, k, n, device_type, use_fp8_gemm):
     gpu = gpu_map[device_type]
     gflops = gemm_flops(m, k, n) / 1e9
     mfu = get_gemm_mfu(device_type, m, k, n)
-    latency = gflops / (gpu.fp16_tflops * 1024 * mfu)
+    latency = gflops / (gpu.fp16_tflops * TFLOPS_TO_GFLOPS * mfu)
     if use_fp8_gemm:
-        latency = gflops / (gpu.fp8_tflops * 1024 * mfu)
+        latency = gflops / (gpu.fp8_tflops * TFLOPS_TO_GFLOPS * mfu)
     # print(f"Debug: gemm m:{m} k:{k} n:{n}")
     return latency
 
@@ -39,7 +39,9 @@ class MHA:
             self.config, bs, kv_len, device_type, self.use_fp8_kv, self.tp_size
         )
         attn_core_time = (
-            bs * attn_core_gflops / (gpu.fp16_tflops * 1024 * attn_core_mfu)
+            bs
+            * attn_core_gflops
+            / (gpu.fp16_tflops * TFLOPS_TO_GFLOPS * attn_core_mfu)
         )
         kv_load_time = (
             kvcache_bytes
@@ -88,7 +90,10 @@ class MHA:
         attn_core_gflops = self.get_attn_core_gflops(1, seq_len)
         attn_core_mfu = get_attn_prefill_mfu(self.config, seq_len, device_type, self.tp_size)
         attn_core_time = (
-            seq_len * attn_core_gflops / 1.8 / (gpu.fp16_tflops * 1024 * attn_core_mfu)
+            seq_len
+            * attn_core_gflops
+            / 1.8
+            / (gpu.fp16_tflops * TFLOPS_TO_GFLOPS * attn_core_mfu)
         )
         kv_load_time = (
             kvcache_bytes
@@ -148,7 +153,9 @@ class MLA(MHA):
             self.config, bs, kv_len, device_type, self.use_fp8_kv, self.tp_size
         )
         attn_core_time = (
-            bs * attn_core_gflops / (gpu.fp16_tflops * 1024 * attn_core_mfu)
+            bs
+            * attn_core_gflops
+            / (gpu.fp16_tflops * TFLOPS_TO_GFLOPS * attn_core_mfu)
         )
         kv_load_time = (
             kvcache_bytes
@@ -234,7 +241,10 @@ class MLA(MHA):
         attn_core_gflops = self.get_attn_core_gflops_noabsorb(1, seq_len)
         attn_core_mfu = get_attn_prefill_mfu(self.config, seq_len, device_type, self.tp_size)
         attn_core_time = (
-            seq_len * attn_core_gflops / 1.8 / (gpu.fp16_tflops * 1024 * attn_core_mfu)
+            seq_len
+            * attn_core_gflops
+            / 1.8
+            / (gpu.fp16_tflops * TFLOPS_TO_GFLOPS * attn_core_mfu)
         )
         kv_load_time = (
             kvcache_bytes
