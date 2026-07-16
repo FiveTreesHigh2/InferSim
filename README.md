@@ -15,7 +15,7 @@ For more details, please check [InferSim Technical Report](https://github.com/us
 | DeepSeek-V3 | H800 | 7839 | 9034 | 2324 | 2675 | Actual data from [deepseek/profile-data](https://github.com/deepseek-ai/profile-data/). Simulated with same setup: [example/deepseek-v3/](./example/deepseek-v3/). |
 | Qwen3-30B-A3B-BF16 | H20 | 16594 | 17350 | 2749 | 2632 | Actual data tested with SGLang, simulation example: [example/qwen3-30B-A3B/](./example/qwen3-30B-A3B/). |
 | Qwen3-8B-FP8 | H20 | 15061 | 16328 | 2682 | 2581 | Actual data tested with SGLang, simulation example: [example/qwen3-8B/](./example/qwen3-8B/). |
-
+| Qwen3.5-35B-A3B-FP8 | PRO5000 | 33139 | 36449 | 2150 | 2175 | Actual data tested with SGLang, simulation example: [example/qwen3-35B/](./example/qwen3.5-35B-A3B). |
 The accuracy of simulation results relies heavily on the kernel benchmark results. Please help us improve the [kernel_benchmark](./kernel_benchmark) and append the data to [bench_data](./bench_data).
 
 ## Supported Features
@@ -30,25 +30,41 @@ The accuracy of simulation results relies heavily on the kernel benchmark result
 
 ```
 $ python3 main.py --help
-usage: main.py [-h] --config-path CONFIG_PATH [--device-type {H20,H800,H200,GB200}]
-               [--world-size WORLD_SIZE] [--num-nodes NUM_NODES]
-               [--max-prefill-tokens MAX_PREFILL_TOKENS] [--decode-bs DECODE_BS]
-               [--target-tgs TARGET_TGS] [--target-tpot TARGET_TPOT] [--target-isl TARGET_ISL]
-               [--target-osl TARGET_OSL] [--use-fp8-gemm] [--use-fp8-kv] [--enable-deepep]
-               [--enable-tbo] [--sm-ratio SM_RATIO] [--prefill-only] [--decode-only]
+usage: main.py [-h] --config-path CONFIG_PATH
+               [--device-type {H20,H800,H200,GB200,PRO5000}]
+               [--world-size WORLD_SIZE] [--tp-size TP_SIZE]
+               [--num-nodes NUM_NODES]
+               [--max-prefill-tokens MAX_PREFILL_TOKENS]
+               [--prefill-attn-mfu PREFILL_ATTN_MFU]
+               [--prefill-moe-mfu PREFILL_MOE_MFU] [--decode-bs DECODE_BS]
+               [--target-tgs TARGET_TGS] [--target-tpot TARGET_TPOT]
+               [--target-isl TARGET_ISL] [--target-osl TARGET_OSL]
+               [--use-fp8-gemm] [--use-fp8-kv]
+               [--decode-scheduler-overhead-ms DECODE_SCHEDULER_OVERHEAD_MS]
+               [--enable-shared-expert-overlap] [--enable-deepep]
+               [--enable-tbo] [--sm-ratio SM_RATIO] [--prefill-only]
+               [--decode-only]
 
 optional arguments:
   -h, --help            show this help message and exit
   --config-path CONFIG_PATH
                         The path of the hf model config.json
-  --device-type {H20,H800,H200,GB200}
+  --device-type {H20,H800,H200,GB200,PRO5000}
                         Device type
   --world-size WORLD_SIZE
                         Num of GPUs
+  --tp-size TP_SIZE     Tensor parallel size. If >1, both attention and MoE
+                        use TP; if =1, attention uses DP and MoE uses EP.
   --num-nodes NUM_NODES
                         Num of nodes
   --max-prefill-tokens MAX_PREFILL_TOKENS
                         Max prefill tokens per GPU
+  --prefill-attn-mfu PREFILL_ATTN_MFU
+                        Override prefill attention MFU. If omitted, read MFU
+                        from bench data.
+  --prefill-moe-mfu PREFILL_MOE_MFU
+                        Override prefill routed MoE/FFN MFU. If omitted, read
+                        MFU from bench data.
   --decode-bs DECODE_BS
                         Decoding batchsize per GPU. If not specified, bs = tgs * tpot.
   --target-tgs TARGET_TGS
@@ -61,6 +77,13 @@ optional arguments:
                         Output sequence length, in tokens
   --use-fp8-gemm        Use fp8 gemm
   --use-fp8-kv          Use fp8 kvcache
+  --decode-scheduler-overhead-ms DECODE_SCHEDULER_OVERHEAD_MS
+                        Override decode scheduler overhead in milliseconds. If
+                        omitted, use the existing model default.
+  --enable-shared-expert-overlap
+                        Model Qwen3.5 MoE Decode shared and routed experts as
+                        parallel CUDA-stream paths. Only supported for the
+                        Qwen3.5 MoE HybridModel.
   --enable-deepep       Enable DeepEP
   --enable-tbo          Enable two batch overlap
   --sm-ratio SM_RATIO   In TBO DeepEP normal mode, the SM ratio used for computation
