@@ -5,6 +5,21 @@ from hardware.gpu import gpu_map
 
 
 def get_attn_decode_mfu(config, target_bs, kv_len, device_type, use_fp8_kv, tp_size):
+    mfu, _ = get_attn_decode_perf(
+        config, target_bs, kv_len, device_type, use_fp8_kv, tp_size
+    )
+    return mfu
+
+
+def get_attn_decode_perf(
+    config, target_bs, kv_len, device_type, use_fp8_kv, tp_size
+):
+    """Return decode attention MFU and an applicable measured latency.
+
+    An absolute latency is returned only for an exact batch-size match and an
+    exact or interpolated KV length. Other cases return an MFU for analytical
+    scaling and ``None`` for latency.
+    """
     gpu = gpu_map[device_type]
     tp_num_heads = config.num_attention_heads // tp_size
     if config.attn_type == "MHA/GQA":
@@ -16,7 +31,7 @@ def get_attn_decode_mfu(config, target_bs, kv_len, device_type, use_fp8_kv, tp_s
         file_name = f"bench_data/mla/decode/{device_type.lower()}/{tp_num_heads}-{head_dim}.csv"
     if not os.path.exists(file_name):
         print(f"Warning: {file_name} not exists")
-        return gpu.mfu
+        return gpu.mfu, None
 
     # row: dtype,kv_dtype,batch_size,kv_len,latency,mfu
     kv_dtype = "fp8" if use_fp8_kv else "bf16"
@@ -29,11 +44,44 @@ def get_attn_decode_mfu(config, target_bs, kv_len, device_type, use_fp8_kv, tp_s
                 continue
             rows.append(row)
 
-    # Find the row with closest batch_size and kv_len to target values
-    closest_row = min(rows, key=lambda r: abs(int(r[2]) - target_bs) + abs(int(r[3]) - kv_len))
-    mfu = float(closest_row[5])
+    if not rows:
+        print(f"Warning: no {kv_dtype} rows found in {file_name}")
+        return gpu.mfu, None
 
-    return round(mfu, 6)
+    exact_bs_rows = [row for row in rows if int(row[2]) == target_bs]
+    if exact_bs_rows:
+        exact_bs_rows.sort(key=lambda row: int(row[3]))
+
+        for row in exact_bs_rows:
+            if int(row[3]) == kv_len:
+                return round(float(row[5]), 6), float(row[4]) / 1e6
+
+        lower = [row for row in exact_bs_rows if int(row[3]) < kv_len]
+        upper = [row for row in exact_bs_rows if int(row[3]) > kv_len]
+        if lower and upper:
+            lo = lower[-1]
+            hi = upper[0]
+            lo_kv = int(lo[3])
+            hi_kv = int(hi[3])
+            ratio = (kv_len - lo_kv) / (hi_kv - lo_kv)
+            latency_us = float(lo[4]) + ratio * (float(hi[4]) - float(lo[4]))
+            mfu = float(lo[5]) + ratio * (float(hi[5]) - float(lo[5]))
+            return round(mfu, 6), latency_us / 1e6
+
+        endpoint = (
+            exact_bs_rows[0]
+            if kv_len < int(exact_bs_rows[0][3])
+            else exact_bs_rows[-1]
+        )
+        return round(float(endpoint[5]), 6), None
+
+    nearest_bs = min(
+        {int(row[2]) for row in rows}, key=lambda bs: abs(bs - target_bs)
+    )
+    same_bs_rows = [row for row in rows if int(row[2]) == nearest_bs]
+    closest_row = min(same_bs_rows, key=lambda row: abs(int(row[3]) - kv_len))
+
+    return round(float(closest_row[5]), 6), None
 
 
 def get_attn_prefill_mfu(config, seq_len, device_type, tp_size):

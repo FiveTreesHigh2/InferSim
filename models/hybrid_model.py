@@ -174,7 +174,11 @@ class HybridModel:
         )
         # full attn
         full_attn = create_attention(
-            self.config, self.args.use_fp8_gemm, self.args.use_fp8_kv, self.args.tp_size
+            self.config,
+            self.args.use_fp8_gemm,
+            self.args.use_fp8_kv,
+            self.args.tp_size,
+            getattr(self.args, "prefill_attn_mfu", None),
         )
         t_full_attn_core = full_attn.prefill_attn_core(
             self.args.target_isl, self.kvcache_bytes, self.args.device_type
@@ -197,7 +201,12 @@ class HybridModel:
         )
 
         # moe
-        moe = MoE(self.config, self.args.use_fp8_gemm, self.args.tp_size)
+        moe = MoE(
+            self.config,
+            self.args.use_fp8_gemm,
+            self.args.tp_size,
+            getattr(self.args, "prefill_moe_mfu", None),
+        )
         t_moe = moe.prefill_moe(
             self.args.max_prefill_tokens, self.args.device_type, self.args.world_size
         )
@@ -271,7 +280,12 @@ class HybridModel:
 
         moe = MoE(self.config, self.args.use_fp8_gemm, self.args.tp_size)
         t_moe = moe.decode_moe(
-            self.target_bs, self.args.device_type, self.args.world_size
+            self.target_bs,
+            self.args.device_type,
+            self.args.world_size,
+            overlap_shared_expert=getattr(
+                self.args, "enable_shared_expert_overlap", False
+            ),
         )
 
         comm = Comm(
@@ -303,7 +317,12 @@ class HybridModel:
         else:
             tpot += (comm_t1 + comm_t2) * self.config.num_hidden_layers
         tpot *= 1000  # convert to ms
-        tpot += 2  # for scheduler
+        scheduler_overhead_ms = getattr(
+            self.args, "decode_scheduler_overhead_ms", None
+        )
+        if scheduler_overhead_ms is None:
+            scheduler_overhead_ms = 2
+        tpot += scheduler_overhead_ms
 
         print("{:<40} {:<10.2f}".format("TPOT (ms):", tpot))
         print("{:<40} {:<10.0f}".format("Throughput (TGS:tok/GPU/s):", num_tokens / self.args.tp_size / (tpot / 1000)))

@@ -1,6 +1,11 @@
 from flops.flops import gemm_flops
 from hardware.gpu import TFLOPS_TO_GFLOPS, gpu_map
-from mfu.mfu import get_attn_decode_mfu, get_attn_prefill_mfu, get_gemm_mfu
+from mfu.mfu import (
+    get_attn_decode_mfu,
+    get_attn_decode_perf,
+    get_attn_prefill_mfu,
+    get_gemm_mfu,
+)
 
 
 def get_gemm_mfu_and_latency(m, k, n, device_type, use_fp8_gemm):
@@ -15,11 +20,14 @@ def get_gemm_mfu_and_latency(m, k, n, device_type, use_fp8_gemm):
 
 
 class MHA:
-    def __init__(self, config, use_fp8_gemm, use_fp8_kv, tp_size):
+    def __init__(
+        self, config, use_fp8_gemm, use_fp8_kv, tp_size, prefill_mfu=None
+    ):
         self.use_fp8_gemm = use_fp8_gemm
         self.use_fp8_kv = use_fp8_kv
         self.config = config
         self.tp_size = tp_size
+        self.prefill_mfu = prefill_mfu
 
     def get_attn_core_gflops(self, bs, kv_len):
         # TP shards attention heads
@@ -35,14 +43,15 @@ class MHA:
     def decode_attn_core(self, bs, kv_len, kvcache_bytes, device_type):
         gpu = gpu_map[device_type]
         attn_core_gflops = self.get_attn_core_gflops(1, kv_len)
-        attn_core_mfu = get_attn_decode_mfu(
+        attn_core_mfu, measured_latency = get_attn_decode_perf(
             self.config, bs, kv_len, device_type, self.use_fp8_kv, self.tp_size
         )
-        attn_core_time = (
-            bs
-            * attn_core_gflops
-            / (gpu.fp16_tflops * TFLOPS_TO_GFLOPS * attn_core_mfu)
-        )
+        if measured_latency is not None:
+            attn_core_time = measured_latency
+        else:
+            attn_core_time = bs * attn_core_gflops / (
+                gpu.fp16_tflops * TFLOPS_TO_GFLOPS * attn_core_mfu
+            )
         kv_load_time = (
             kvcache_bytes
             * kv_len
@@ -60,7 +69,9 @@ class MHA:
         )
         print("{:<40} {:<10.2f}".format("KV loading latency (us):", kv_load_time * 1e6))
 
-        return max(attn_core_time, kv_load_time)
+        # Decode benchmark latency already includes KV-cache reads. Keep the
+        # standalone roofline in the output as a diagnostic only.
+        return attn_core_time
 
     def decode_attn_others(self, bs, device_type):
         # TP shards heads; hidden_size is NOT sharded
@@ -93,7 +104,12 @@ class MHA:
     def prefill_attn_core(self, seq_len, kvcache_bytes, device_type):
         gpu = gpu_map[device_type]
         attn_core_gflops = self.get_attn_core_gflops(1, seq_len)
-        attn_core_mfu = get_attn_prefill_mfu(self.config, seq_len, device_type, self.tp_size)
+        if self.prefill_mfu is None:
+            attn_core_mfu = get_attn_prefill_mfu(
+                self.config, seq_len, device_type, self.tp_size
+            )
+        else:
+            attn_core_mfu = self.prefill_mfu
         attn_core_time = (
             seq_len
             * attn_core_gflops
@@ -270,8 +286,10 @@ class MLA(MHA):
         return max(attn_core_time, kv_load_time)
 
 
-def create_attention(config, use_fp8_gemm, use_fp8_kv, tp_size):
+def create_attention(
+    config, use_fp8_gemm, use_fp8_kv, tp_size, prefill_mfu=None
+):
     if config.attn_type == "MHA/GQA":
-        return MHA(config, use_fp8_gemm, use_fp8_kv, tp_size)
+        return MHA(config, use_fp8_gemm, use_fp8_kv, tp_size, prefill_mfu)
     elif config.attn_type == "MLA":
         return MLA(config, use_fp8_gemm, use_fp8_kv, tp_size)

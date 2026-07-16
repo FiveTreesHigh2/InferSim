@@ -93,10 +93,28 @@ def load_attn_weights_time(config: ModelConfig, use_fp8: bool, gpu: GPU, tp_size
     return size / 1024 / 1024 / 1024 / gpu.mem_bw
 
 
+def get_expected_active_experts(
+    config: ModelConfig, num_gpus: int, tp_size: int, num_tokens=None
+):
+    """Estimate local routed experts touched by a uniformly routed batch."""
+    ep_size = num_gpus // tp_size
+    num_local_experts = config.num_routed_experts / ep_size
+    if num_tokens is None:
+        return num_local_experts
+
+    topk = min(config.num_experts_per_tok, num_local_experts)
+    probability_not_selected = (1 - topk / num_local_experts) ** num_tokens
+    return num_local_experts * (1 - probability_not_selected)
+
+
 def load_moe_weights_time(
-    config: ModelConfig, use_fp8: bool, gpu: GPU, num_gpus, tp_size=1
+    config: ModelConfig,
+    use_fp8: bool,
+    gpu: GPU,
+    num_gpus,
+    tp_size=1,
+    num_tokens=None,
 ):
     size = get_expert_params_size(config, use_fp8, tp_size)
-    ep_size = num_gpus // tp_size
-    size *= config.num_routed_experts / ep_size
+    size *= get_expected_active_experts(config, num_gpus, tp_size, num_tokens)
     return size / 1024 / 1024 / 1024 / gpu.mem_bw

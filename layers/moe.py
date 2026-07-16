@@ -3,7 +3,7 @@ from hardware.gpu import TFLOPS_TO_GFLOPS, gpu_map
 from layers.attn import get_gemm_mfu_and_latency
 from mfu.mfu import (get_gemm_mfu, get_groupedgemm_decode_mfu,
                      get_groupedgemm_prefill_mfu)
-from params.params import load_moe_weights_time
+from params.params import get_expected_active_experts, load_moe_weights_time
 
 
 class MoE:
@@ -11,12 +11,19 @@ class MoE:
     MoE/FFN layer, dense FFN is treated as a special 1-expert MoE
     """
 
-    def __init__(self, config, use_fp8_gemm, tp_size):
+    def __init__(self, config, use_fp8_gemm, tp_size, prefill_mfu=None):
         self.use_fp8_gemm = use_fp8_gemm
         self.config = config
         self.tp_size = tp_size
+        self.prefill_mfu = prefill_mfu
 
-    def decode_moe(self, bs, device_type, num_gpus):
+    def decode_moe(
+        self,
+        bs,
+        device_type,
+        num_gpus,
+        overlap_shared_expert=False,
+    ):
         gpu = gpu_map[device_type]
 
         # TP shards intermediate_size; hidden_size is NOT sharded
@@ -48,10 +55,19 @@ class MoE:
                 gpu.fp8_tflops * TFLOPS_TO_GFLOPS * routed_experts_mfu
             )
 
+        active_experts = get_expected_active_experts(
+            self.config, num_gpus, self.tp_size, bs
+        )
         moe_load_time = load_moe_weights_time(
-            self.config, self.use_fp8_gemm, gpu, num_gpus, self.tp_size
+            self.config,
+            self.use_fp8_gemm,
+            gpu,
+            num_gpus,
+            self.tp_size,
+            num_tokens=bs,
         )
         print("{:<40} {:<10.2f}".format("Routed experts/FFN MFU:", routed_experts_mfu))
+        print("{:<40} {:<10.2f}".format("Expected active experts:", active_experts))
         print(
             "{:<40} {:<10.2f}".format(
                 "Routed experts/FFN latency (us):", routed_experts_latency * 1e6
@@ -81,13 +97,19 @@ class MoE:
                 device_type=device_type,
                 use_fp8_gemm=self.use_fp8_gemm,
             )
+            shared_expert_latency = shared_expert_up_proj + shared_expert_down_proj
             print(
                 "{:<40} {:<10.2f}".format(
                     "Shared expert latency (us):",
-                    (shared_expert_up_proj + shared_expert_down_proj) * 1e6,
+                    shared_expert_latency * 1e6,
                 )
             )
-            t += shared_expert_up_proj + shared_expert_down_proj
+            if overlap_shared_expert:
+                t = max(t, shared_expert_latency)
+                print("{:<40} {:<10}".format("Shared expert execution:", "overlap"))
+            else:
+                t += shared_expert_latency
+                print("{:<40} {:<10}".format("Shared expert execution:", "serial"))
         return t
 
     def prefill_moe(self, seq_len, device_type, num_gpus):
@@ -100,7 +122,9 @@ class MoE:
         )
         routed_experts_gflops *= seq_len * self.config.num_experts_per_tok * 3.0 / 1e9
 
-        if self.config.is_moe:
+        if self.prefill_mfu is not None:
+            routed_experts_mfu = self.prefill_mfu
+        elif self.config.is_moe:
             routed_experts_mfu = max(
                 get_groupedgemm_prefill_mfu(
                     self.config, seq_len, device_type, num_gpus, self.use_fp8_gemm, self.tp_size
