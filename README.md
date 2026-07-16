@@ -16,6 +16,7 @@ For more details, please check [InferSim Technical Report](https://github.com/us
 | Qwen3-30B-A3B-BF16 | H20 | 16594 | 17350 | 2749 | 2632 | Actual data tested with SGLang, simulation example: [example/qwen3-30B-A3B/](./example/qwen3-30B-A3B/). |
 | Qwen3-8B-FP8 | H20 | 15061 | 16328 | 2682 | 2581 | Actual data tested with SGLang, simulation example: [example/qwen3-8B/](./example/qwen3-8B/). |
 | Qwen3.5-35B-A3B-FP8 | PRO5000 | 33139 | 36449 | 2150 | 2175 | Actual data tested with SGLang, simulation example: [example/qwen3-35B/](./example/qwen3.5-35B-A3B). |
+
 The accuracy of simulation results relies heavily on the kernel benchmark results. Please help us improve the [kernel_benchmark](./kernel_benchmark) and append the data to [bench_data](./bench_data).
 
 ## Supported Features
