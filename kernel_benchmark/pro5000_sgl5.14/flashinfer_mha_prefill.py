@@ -6,7 +6,6 @@ import sys
 import pandas as pd
 import torch
 import torch.utils.benchmark as benchmark
-from sgl_kernel.flash_attn import flash_attn_varlen_func
 
 parent_dir = os.path.join(os.path.dirname(__file__), "..", "..")
 sys.path.append(os.path.abspath(parent_dir))
@@ -65,71 +64,6 @@ def prefill_attention_flashinfer():
 
     return FlashinferPrefill
 
-def prefill_attention_fa3():
-    class Fa3Attention(torch.autograd.Function):
-        @staticmethod
-        def forward(
-            ctx,
-            q,
-            k,
-            v,
-            num_q_heads,
-            num_kv_heads,
-            head_dim,
-            warmup=10,
-        ):
-            seq_len = q.shape[0]
-            scale = head_dim**-0.5
-            # print(f"seq_len:{seq_len}, scale:{scale}")
-            qo_indptr = torch.tensor([0, seq_len], dtype=torch.int32, device="cuda")
-
-            print(f"q:{q.shape}, k:{k.shape}, v:{v.shape} {q.dtype}")
-            flash_attn_varlen_func(
-                q=q.view(-1, num_q_heads, head_dim),
-                k=k.view(-1, num_kv_heads, head_dim).to(q.dtype),
-                v=v.view(-1, num_kv_heads, head_dim).to(q.dtype),
-                cu_seqlens_q=qo_indptr,
-                cu_seqlens_k=qo_indptr,
-                max_seqlen_q=seq_len,
-                max_seqlen_k=seq_len,
-                softmax_scale=scale,
-                causal=True,
-                return_softmax_lse=True,
-            )
-
-            for _ in range(warmup):
-                o = flash_attn_varlen_func(
-                    q=q.view(-1, num_q_heads, head_dim),
-                    k=k.view(-1, num_kv_heads, head_dim).to(q.dtype),
-                    v=v.view(-1, num_kv_heads, head_dim).to(q.dtype),
-                    cu_seqlens_q=qo_indptr,
-                    cu_seqlens_k=qo_indptr,
-                    max_seqlen_q=seq_len,
-                    max_seqlen_k=seq_len,
-                    softmax_scale=scale,
-                    causal=True,
-                    return_softmax_lse=True,
-                )
-
-            f = time_fwd(
-                flash_attn_varlen_func,
-                q=q.view(-1, num_q_heads, head_dim),
-                k=k.view(-1, num_kv_heads, head_dim).to(q.dtype),
-                v=v.view(-1, num_kv_heads, head_dim).to(q.dtype),
-                cu_seqlens_q=qo_indptr,
-                cu_seqlens_k=qo_indptr,
-                max_seqlen_q=seq_len,
-                max_seqlen_k=seq_len,
-                softmax_scale=scale,
-                causal=True,
-                return_softmax_lse=True,
-            )
-
-            return f, o
-
-    return Fa3Attention
-
-
 def main(args):
     config = ModelConfig(args.config_path)
     fp16_tflops = 274
@@ -184,7 +118,6 @@ def main(args):
 
 
 if __name__ == "__main__":
-    # calculate_diff()
     parser = argparse.ArgumentParser()
     parser.add_argument(
         "--config-path",
