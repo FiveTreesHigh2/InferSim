@@ -2,7 +2,7 @@
 """
 Columns (unchanged): m,k,n,latency_us,mfu
 Run (sweep m for one (k,n) shape):
-    python flashinfer_gemm.py -k 2048 -n 9216 --gpu-tflops 536 \
+    python kernel_benchmark/flashinfer_gemm.py -k 2048 -n 9216 --gpu-tflops 536 \
         --output gemm_2048_9216.csv
 """
 import argparse

@@ -12,7 +12,7 @@ Both measurements count one source read plus one destination write, following
 the STREAM-copy convention.  Use a working set much larger than L2 cache.
 
 Example:
-    python3 kernel_benchmark/pro5000_memory_bandwidth.py   --size-gib 2   \
+    python3 kernel_benchmark/memory_bandwidth.py   --size-gib 2   \
         --warmup 10   --iterations 30   --rounds 7   \
         --peak-gbps 1345   --kv-batch-size 8   --kv-len 64512   --kv-heads 2   --head-dim 256   --kv-dtype-bytes 2
 """

@@ -7,7 +7,7 @@ import pandas as pd
 import torch
 import torch.utils.benchmark as benchmark
 
-parent_dir = os.path.join(os.path.dirname(__file__), "..", "..")
+parent_dir = os.path.join(os.path.dirname(__file__), "..")
 sys.path.append(os.path.abspath(parent_dir))
 
 from config.model_config import ModelConfig  # noqa E402

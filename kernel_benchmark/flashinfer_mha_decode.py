@@ -135,8 +135,11 @@ def main(args):
 
     configs = []
     results = []
-    for batch_size, kv_len_range in batch_kv_mapping.items():
-        configs.extend([(batch_size, kv_len) for kv_len in kv_len_range])
+    if args.batch_size is not None:
+        configs.append((args.batch_size, args.kv_len))
+    else:
+        for batch_size, kv_len_range in batch_kv_mapping.items():
+            configs.extend([(batch_size, kv_len) for kv_len in kv_len_range])
 
     attn_flashinfer = decode_attention_flashinfer(
         kv_cache_dtype, num_attention_heads, num_kv_heads
@@ -161,8 +164,10 @@ def main(args):
                 device="cuda",
             ).to(kv_cache_dtype),
         )
-        attn_core_gflops, other_gflops = get_mha_gflops(config, 1, kv_len)
-        attn_core_gflops = attn_core_gflops * batch_size / args.tp_size
+        attn_core_gflops, other_gflops = get_mha_gflops(
+            config, 1, kv_len, args.tp_size
+        )
+        attn_core_gflops = attn_core_gflops * batch_size
 
         us_flashinfer, _ = attn_flashinfer(
             q,
@@ -201,7 +206,7 @@ def main(args):
                 "batch_size": batch_size,
                 "kv_len": kv_len,
                 "latency_us": round(us_flashinfer, 3),
-                "mfu": round(mfu, 3),
+                "mfu": round(mfu, 6),
             }
         )
 
@@ -229,8 +234,22 @@ if __name__ == "__main__":
     )
     parser.add_argument("--tp-size", type=int, default=1, help="tp size")
     parser.add_argument(
+        "--batch-size",
+        type=int,
+        default=None,
+        help="Benchmark only one batch size; requires --kv-len.",
+    )
+    parser.add_argument(
+        "--kv-len",
+        type=int,
+        default=None,
+        help="Benchmark only one KV length; requires --batch-size.",
+    )
+    parser.add_argument(
         "--fp16-tflops", type=int, default=148, help="GPU FP16 TFLOPS size"
     )
 
     args = parser.parse_args()
+    if (args.batch_size is None) != (args.kv_len is None):
+        parser.error("--batch-size and --kv-len must be specified together")
     main(args)

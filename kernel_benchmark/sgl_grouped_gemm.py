@@ -18,9 +18,9 @@ For feeding InferSim, use --use-fp8-w8a8 (the model IS block-FP8) and NO --use-c
 diagnostics; graphed / bf16 numbers should NOT be fed to the simulator.
 
 Run (single card => --num-gpus 1 --tp-size 1 => ep_size 1 => 256 experts on one GPU):
-  python sglang_fused_moe.py --config-path hf_configs/qwen3.5-35B-A3B_config.json \
+  python kernel_benchmark/sgl_grouped_gemm.py --config-path hf_configs/qwen3.5-35B-A3B_config.json \
       --mode prefill --num-gpus 1 --tp-size 1 --use-fp8-w8a8 --use-cuda-graph
-  python sglang_fused_moe.py --config-path hf_configs/qwen3.5-35B-A3B_config.json \
+  python kernel_benchmark/sgl_grouped_gemm.py --config-path hf_configs/qwen3.5-35B-A3B_config.json \
       --mode decode  --num-gpus 1 --tp-size 1 --use-fp8-w8a8 --use-cuda-graph
 Then:
   mkdir -p bench_data/grouped_gemm/prefill/pro5000 bench_data/grouped_gemm/decode/pro5000
@@ -43,7 +43,7 @@ try:  # import path drifted across sglang versions; 0.5.14 resolves the first
 except ImportError:
     from sglang.srt.layers.moe.moe_runner.triton_utils.fused_moe import fused_moe
 
-parent_dir = os.path.join(os.path.dirname(__file__), "..", "..")
+parent_dir = os.path.join(os.path.dirname(__file__), "..")
 sys.path.append(os.path.abspath(parent_dir))
 from config.model_config import ModelConfig  # noqa E402
 
