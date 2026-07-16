@@ -47,7 +47,7 @@ class MHA:
             kvcache_bytes
             * kv_len
             * bs
-            / self.config.num_hidden_layers
+            / self.config.num_full_attn_layers
             / 1024
             / 1024
             / 1024
@@ -66,10 +66,15 @@ class MHA:
         # TP shards heads; hidden_size is NOT sharded
         tp_num_heads = self.config.num_attention_heads // self.tp_size
         tp_num_kv_heads = self.config.num_key_value_heads // self.tp_size
+        q_multiplier = 2 if self.config.attn_output_gate else 1
+        qkv_output_size = (
+            q_multiplier * tp_num_heads + 2 * tp_num_kv_heads
+        ) * self.config.head_dim
+
         qkv_proj = get_gemm_mfu_and_latency(
             m=bs,
             k=self.config.hidden_size,
-            n=(tp_num_heads + tp_num_kv_heads * 2) * self.config.head_dim,
+            n=qkv_output_size,
             device_type=device_type,
             use_fp8_gemm=self.use_fp8_gemm,
         )
@@ -98,7 +103,7 @@ class MHA:
         kv_load_time = (
             kvcache_bytes
             * seq_len
-            / self.config.num_hidden_layers
+            / self.config.num_full_attn_layers
             / 1024
             / 1024
             / 1024

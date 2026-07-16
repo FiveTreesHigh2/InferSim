@@ -10,12 +10,22 @@ class ModelConfig:
         with open(config_path, "r") as f:
             d = json.load(f)
 
-        if d["model_type"] in ["qwen3_5", "qwen3_5_moe"]:
+        root_model_type = d["model_type"]
+        if root_model_type in ["qwen3_5", "qwen3_5_moe"]:
             d = d["text_config"]
+
+        self.model_type = d["model_type"]
+        self.is_qwen3_5_moe = (
+            root_model_type == "qwen3_5_moe"
+            and self.model_type == "qwen3_5_moe_text"
+        )
 
         self.hidden_size = d["hidden_size"]
         self.num_hidden_layers = d["num_hidden_layers"]
 
+        # Non-hybrid models use full attention in every hidden layer.
+        self.num_full_attn_layers = self.num_hidden_layers
+        self.num_linear_attn_layers = 0
         self.is_hybrid_linear = d.get("full_attention_interval") is not None
         if self.is_hybrid_linear:
             self.num_full_attn_layers = (
@@ -35,6 +45,7 @@ class ModelConfig:
             self.attn_type = "MLA"
 
         # attn
+        self.attn_output_gate = d.get("attn_output_gate", False)
         if self.attn_type == "MHA/GQA":
             self.num_attention_heads = d["num_attention_heads"]
             self.num_key_value_heads = d["num_key_value_heads"]
@@ -65,8 +76,25 @@ class ModelConfig:
         if self.is_moe:
             self.num_experts_per_tok = d["num_experts_per_tok"]
             self.intermediate_size = d["moe_intermediate_size"]
-            self.num_shared_experts = d.get("num_shared_experts", 0)
+            self.shared_expert_intermediate_size = d.get(
+                "shared_expert_intermediate_size"
+            )
+            if self.shared_expert_intermediate_size is not None:
+                if self.shared_expert_intermediate_size % self.intermediate_size != 0:
+                    raise ValueError(
+                        "InferSim currently requires shared_expert_intermediate_size "
+                        "to be a multiple of moe_intermediate_size"
+                    )
+                self.num_shared_experts = (
+                    self.shared_expert_intermediate_size // self.intermediate_size
+                )
+            else:
+                self.num_shared_experts = d.get("num_shared_experts", 0)
+                self.shared_expert_intermediate_size = (
+                    self.num_shared_experts * self.intermediate_size
+                )
         else:
             self.num_experts_per_tok = 1
             self.intermediate_size = d["intermediate_size"]
             self.num_shared_experts = 0
+            self.shared_expert_intermediate_size = 0

@@ -9,8 +9,12 @@ def get_mha_gflops(config, bs, avg_context_len, tp_size):
     # TP shards heads; hidden_size is NOT sharded
     tp_num_heads = config.num_attention_heads // tp_size
     tp_num_kv_heads = config.num_key_value_heads // tp_size
+    q_multiplier = 2 if config.attn_output_gate else 1
+
     q_proj = gemm_flops(
-        bs, config.hidden_size, tp_num_heads * config.head_dim
+        bs,
+        config.hidden_size,
+        q_multiplier * tp_num_heads * config.head_dim,
     )
     k_proj = gemm_flops(
         bs, config.hidden_size, tp_num_kv_heads * config.head_dim
