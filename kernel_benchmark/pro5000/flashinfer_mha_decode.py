@@ -165,7 +165,7 @@ def main(args):
             ).to(kv_cache_dtype),
         )
         attn_core_gflops, other_gflops = get_mha_gflops(config, 1, kv_len, args.tp_size)
-        attn_core_gflops = attn_core_gflops * batch_size / args.tp_size
+        attn_core_gflops = attn_core_gflops * batch_size
 
         us_flashinfer, _ = attn_flashinfer(
             q,
