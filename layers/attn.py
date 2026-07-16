@@ -69,9 +69,10 @@ class MHA:
         )
         print("{:<40} {:<10.2f}".format("KV loading latency (us):", kv_load_time * 1e6))
 
-        # Decode benchmark latency already includes KV-cache reads. Keep the
-        # standalone roofline in the output as a diagnostic only.
-        return attn_core_time
+        if measured_latency is not None:
+             # Decode benchmark latency already includes KV-cache reads.
+             return attn_core_time
+        return max(attn_core_time, kv_load_time)
 
     def decode_attn_others(self, bs, device_type):
         # TP shards heads; hidden_size is NOT sharded
