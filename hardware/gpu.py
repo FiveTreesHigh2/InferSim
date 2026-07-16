@@ -61,4 +61,23 @@ gb200 = GPU(
     rdma_bw=50 * 0.8,
 )  # GB200 NVL72
 
-gpu_map = {"H20": h20, "H800": h800, "H200": h200, "GB200": gb200}
+pro5000 = GPU(
+    fp16_tflops=274,
+    fp8_tflops=536,
+    mfu=0.5,
+    mem=72,
+    mem_bw=1102.3,
+    nvlink_bw=64 * 0.8,
+    rdma_bw=50 * 0.8, 
+    frequency=None,
+    num_sm=110,
+    sm_version=120,
+)
+
+gpu_map = {
+    "H20": h20,
+    "H800": h800,
+    "H200": h200,
+    "GB200": gb200,
+    "PRO5000": pro5000,
+}
